@@ -263,7 +263,7 @@ def build_simple_saju_interpretation(year: int):
 # -----------------------------
 # Header
 # -----------------------------
-st.markdown("<div class='main-title'>🔮 오늘의 사주 한 장</div>", unsafe_allow_html=True)
+st.markdown("<div class='main-title'>🔮 오늘의 사주</div>", unsafe_allow_html=True)
 st.markdown(
     "<div class='sub-title'>쉽게 보는 사주 성향 + 오늘 운세</div>",
     unsafe_allow_html=True
