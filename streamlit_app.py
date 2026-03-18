@@ -1,466 +1,238 @@
 import streamlit as st
-from datetime import date, datetime
-import sxtwl
+from datetime import date, time
+from korean_lunar_calendar import KoreanLunarCalendar
 
-# -----------------------------
-# Page Config
-# -----------------------------
 st.set_page_config(
-    page_title="오늘의 사주",
-    page_icon="🔮",
+    page_title="🌸 몽글몽글 만세력 🌸",
+    page_icon="🌸",
     layout="centered"
 )
 
-# -----------------------------
-# Color Palette
-# -----------------------------
-COLORS = {
-    "bg": "#F2EAE0",
-    "card": "#B4D3D9",
-    "sub": "#BDA6CE",
-    "accent": "#9B8EC7",
-    "text": "#3A3440",
-    "white": "#FFFFFF"
-}
+# ---------------------------
+# 기본 데이터
+# ---------------------------
+STEMS = ["갑", "을", "병", "정", "무", "기", "경", "신", "임", "계"]
+BRANCHES = ["자", "축", "인", "묘", "진", "사", "오", "미", "신", "유", "술", "해"]
 
-# -----------------------------
-# CSS
-# -----------------------------
-st.markdown(f"""
-<style>
-    .stApp {{
-        background: linear-gradient(180deg, {COLORS["bg"]} 0%, #ffffff 100%);
-        color: {COLORS["text"]};
-    }}
-
-    .main-title {{
-        text-align: center;
-        font-size: 2.2rem;
-        font-weight: 800;
-        color: {COLORS["accent"]};
-        margin-bottom: 0.2rem;
-    }}
-
-    .sub-title {{
-        text-align: center;
-        font-size: 1rem;
-        color: {COLORS["text"]};
-        margin-bottom: 1.5rem;
-    }}
-
-    .card {{
-        background: rgba(255,255,255,0.78);
-        border-radius: 22px;
-        padding: 22px;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.08);
-        border: 1px solid rgba(255,255,255,0.5);
-        margin-bottom: 16px;
-    }}
-
-    .soft-card {{
-        background: {COLORS["card"]};
-        border-radius: 20px;
-        padding: 18px;
-        color: {COLORS["text"]};
-        margin-bottom: 14px;
-    }}
-
-    .mini-card {{
-        background: {COLORS["sub"]};
-        border-radius: 18px;
-        padding: 14px;
-        color: white;
-        text-align: center;
-        font-weight: 700;
-    }}
-
-    .fortune-card {{
-        background: {COLORS["accent"]};
-        border-radius: 22px;
-        padding: 20px;
-        color: white;
-        box-shadow: 0 10px 22px rgba(155,142,199,0.25);
-    }}
-
-    .section-title {{
-        font-size: 1.15rem;
-        font-weight: 800;
-        margin-bottom: 10px;
-        color: {COLORS["accent"]};
-    }}
-
-    .pill {{
-        display: inline-block;
-        padding: 6px 12px;
-        border-radius: 999px;
-        background: {COLORS["bg"]};
-        color: {COLORS["text"]};
-        font-size: 0.88rem;
-        margin-right: 6px;
-        margin-bottom: 6px;
-    }}
-
-    .notice {{
-        font-size: 0.92rem;
-        color: #5b5561;
-        background: rgba(255,255,255,0.7);
-        padding: 12px 16px;
-        border-radius: 14px;
-        border-left: 5px solid {COLORS["accent"]};
-        margin-bottom: 16px;
-    }}
-
-    .stButton > button {{
-        background: {COLORS["accent"]};
-        color: white;
-        border: none;
-        border-radius: 14px;
-        height: 48px;
-        font-weight: 700;
-        width: 100%;
-    }}
-
-    .stButton > button:hover {{
-        border: none;
-        color: white;
-        opacity: 0.95;
-    }}
-</style>
-""", unsafe_allow_html=True)
-
-# -----------------------------
-# Constants
-# -----------------------------
-GAN = ["갑", "을", "병", "정", "무", "기", "경", "신", "임", "계"]
-ZHI = ["자", "축", "인", "묘", "진", "사", "오", "미", "신", "유", "술", "해"]
-
-# sxtwl docs/examples use index arrays for Gan/Zhi values. :contentReference[oaicite:2]{index=2}
-
-ZODIAC = ["쥐", "소", "호랑이", "토끼", "용", "뱀", "말", "양", "원숭이", "닭", "개", "돼지"]
-
-GAN_ELEMENT = {
+ELEMENTS = {
     "갑": "목", "을": "목",
     "병": "화", "정": "화",
     "무": "토", "기": "토",
     "경": "금", "신": "금",
-    "임": "수", "계": "수"
+    "임": "수", "계": "수",
+    "자": "수", "해": "수",
+    "인": "목", "묘": "목",
+    "사": "화", "오": "화",
+    "진": "토", "술": "토", "축": "토", "미": "토",
+    "신": "금", "유": "금",
 }
 
-ZHI_ELEMENT = {
-    "자": "수", "축": "토", "인": "목", "묘": "목",
-    "진": "토", "사": "화", "오": "화", "미": "토",
-    "신": "금", "유": "금", "술": "토", "해": "수"
+YINYANG = {
+    "갑": "양", "병": "양", "무": "양", "경": "양", "임": "양",
+    "을": "음", "정": "음", "기": "음", "신": "음", "계": "음",
+    "자": "양", "인": "양", "진": "양", "오": "양", "신": "양", "술": "양",
+    "축": "음", "묘": "음", "사": "음", "미": "음", "유": "음", "해": "음",
 }
 
-ELEMENT_DESC = {
-    "목": {
-        "title": "성장형",
-        "desc": "배움, 확장, 시작의 기운이 강합니다.",
-        "tip": "계획을 세운 뒤 꾸준히 밀고 가면 좋습니다."
-    },
-    "화": {
-        "title": "표현형",
-        "desc": "열정, 표현력, 존재감이 강합니다.",
-        "tip": "감정의 속도를 조금만 조절하면 더 좋습니다."
-    },
-    "토": {
-        "title": "안정형",
-        "desc": "균형감, 현실감, 신뢰가 강점입니다.",
-        "tip": "혼자 다 떠안지 말고 분산하면 훨씬 편해집니다."
-    },
-    "금": {
-        "title": "정리형",
-        "desc": "판단력, 기준, 정돈 능력이 좋습니다.",
-        "tip": "완벽하려 하기보다 유연함을 조금 더하면 좋습니다."
-    },
-    "수": {
-        "title": "통찰형",
-        "desc": "직감, 사고력, 흐름을 읽는 힘이 좋습니다.",
-        "tip": "생각이 많아질 땐 글로 적으면 정리가 빨라집니다."
-    }
+TEN_GODS = {
+    "비견": "나와 쏙 빼닮은 단짝 친구 👯‍♀️",
+    "겁재": "지기 싫어! 불타는 경쟁심 🔥",
+    "식신": "냠냠 맛있는 거 먹고 신나게 놀기 🍰",
+    "상관": "통통 튀는 아이디어 뱅크 ✨",
+    "편재": "앗싸! 생각지도 못한 용돈 💸",
+    "정재": "차곡차곡 모으는 알뜰살뜰 저금통 🐷",
+    "편관": "으쌰으쌰! 책임감 넘치는 대장님 👑",
+    "정관": "바른 생활 사나이/어린이 🌟",
+    "편인": "엉뚱발랄 4차원 상상력 🎈",
+    "정인": "따뜻한 엄마 품처럼 포근함 🧸",
 }
 
-DAY_MASTER_TEXT = {
-    "갑": "큰 나무 같은 타입으로, 곧고 성장하려는 힘이 큽니다.",
-    "을": "덩굴이나 화초 같은 타입으로, 섬세하고 유연한 감각이 좋습니다.",
-    "병": "태양 같은 타입으로, 밝고 추진력이 강한 편입니다.",
-    "정": "촛불 같은 타입으로, 섬세한 감성과 집중력이 돋보입니다.",
-    "무": "큰 산 같은 타입으로, 중심을 잡고 버티는 힘이 좋습니다.",
-    "기": "논밭의 흙 같은 타입으로, 실용적이고 배려가 자연스럽습니다.",
-    "경": "원석이나 큰 쇠 같은 타입으로, 결단력과 원칙이 강합니다.",
-    "신": "보석 같은 타입으로, 정교함과 미감, 세밀함이 강점입니다.",
-    "임": "큰 바다 같은 타입으로, 스케일이 크고 사고가 넓습니다.",
-    "계": "비나 안개 같은 타입으로, 조용하지만 깊은 통찰이 있습니다."
+TEN_GOD_TABLE = {
+    "갑": {"갑": "비견", "을": "겁재", "병": "식신", "정": "상관", "무": "편재", "기": "정재", "경": "편관", "신": "정관", "임": "편인", "계": "정인"},
+    "을": {"갑": "겁재", "을": "비견", "병": "상관", "정": "식신", "무": "정재", "기": "편재", "경": "정관", "신": "편관", "임": "정인", "계": "편인"},
+    "병": {"갑": "편인", "을": "정인", "병": "비견", "정": "겁재", "무": "식신", "기": "상관", "경": "편재", "신": "정재", "임": "편관", "계": "정관"},
+    "정": {"갑": "정인", "을": "편인", "병": "겁재", "정": "비견", "무": "상관", "기": "식신", "경": "정재", "신": "편재", "임": "정관", "계": "편관"},
+    "무": {"갑": "편관", "을": "정관", "병": "편인", "정": "정인", "무": "비견", "기": "겁재", "경": "식신", "신": "상관", "임": "편재", "계": "정재"},
+    "기": {"갑": "정관", "을": "편관", "병": "정인", "정": "편인", "무": "겁재", "기": "비견", "경": "상관", "신": "식신", "임": "정재", "계": "편재"},
+    "경": {"갑": "편재", "을": "정재", "병": "편관", "정": "정관", "무": "편인", "기": "정인", "경": "비견", "신": "겁재", "임": "식신", "계": "상관"},
+    "신": {"갑": "정재", "을": "편재", "병": "정관", "정": "편관", "무": "정인", "기": "편인", "경": "겁재", "신": "비견", "임": "상관", "계": "식신"},
+    "임": {"갑": "식신", "을": "상관", "병": "편재", "정": "정재", "무": "편관", "기": "정관", "경": "편인", "신": "정인", "임": "비견", "계": "겁재"},
+    "계": {"갑": "상관", "을": "식신", "병": "정재", "정": "편재", "무": "정관", "기": "편관", "경": "정인", "신": "편인", "임": "겁재", "계": "비견"},
 }
 
-TODAY_MESSAGES = {
-    0: {
-        "overall": "정리와 준비에 좋은 흐름입니다.",
-        "love": "강한 표현보다 진심 있는 한마디가 잘 통합니다.",
-        "work": "중요한 결정 전 우선순위 정리에 좋습니다.",
-        "money": "충동 소비보다 점검과 계획이 유리합니다."
-    },
-    1: {
-        "overall": "사람운이 들어오는 날입니다.",
-        "love": "먼저 다정하게 다가가면 흐름이 부드러워집니다.",
-        "work": "혼자보다 협업에서 성과가 더 잘 납니다.",
-        "money": "작은 혜택이나 유용한 정보를 얻기 쉽습니다."
-    },
-    2: {
-        "overall": "집중력이 높아지는 날입니다.",
-        "love": "말보다 신뢰를 보여주는 태도가 중요합니다.",
-        "work": "문서, 공부, 분석성 업무에 좋습니다.",
-        "money": "새 소비보다 관리와 절제가 유리합니다."
-    },
-    3: {
-        "overall": "변화가 들어오는 날입니다.",
-        "love": "단정적인 말투만 줄여도 관계가 편해집니다.",
-        "work": "새 제안이나 아이디어를 시험해보기 좋습니다.",
-        "money": "큰 결정은 한 번 더 검토하세요."
-    },
-    4: {
-        "overall": "성과를 만들기 좋은 날입니다.",
-        "love": "안정감 있는 태도가 관계운을 높입니다.",
-        "work": "실행력이 살아나 결과가 잘 보입니다.",
-        "money": "예정된 범위 안의 소비는 무난합니다."
-    },
-    5: {
-        "overall": "가볍게 흐름을 타기 좋은 날입니다.",
-        "love": "호감운이 올라오고 분위기가 부드럽습니다.",
-        "work": "딱딱한 일보다 아이디어성 업무가 잘 맞습니다.",
-        "money": "기분 소비만 조심하면 괜찮습니다."
-    },
-    6: {
-        "overall": "회복과 재정비가 중요한 날입니다.",
-        "love": "상대보다 내 마음을 먼저 돌보는 게 좋습니다.",
-        "work": "다음 주 준비와 정리가 잘 맞습니다.",
-        "money": "새 지출보다 점검과 절약이 유리합니다."
-    }
+HOUR_STEM_START = {
+    "갑": "갑", "기": "갑",
+    "을": "병", "경": "병",
+    "병": "무", "신": "무",
+    "정": "경", "임": "경",
+    "무": "임", "계": "임",
 }
 
-# -----------------------------
-# Helpers
-# -----------------------------
-def gz_to_korean(gz_obj):
-    return GAN[gz_obj.tg] + ZHI[gz_obj.dz]
+HOUR_BRANCH_TABLE = [
+    ((23, 0), (23, 59), "자"),
+    ((0, 0), (0, 59), "자"),
+    ((1, 0), (2, 59), "축"),
+    ((3, 0), (4, 59), "인"),
+    ((5, 0), (6, 59), "묘"),
+    ((7, 0), (8, 59), "진"),
+    ((9, 0), (10, 59), "사"),
+    ((11, 0), (12, 59), "오"),
+    ((13, 0), (14, 59), "미"),
+    ((15, 0), (16, 59), "신"),
+    ((17, 0), (18, 59), "유"),
+    ((19, 0), (20, 59), "술"),
+    ((21, 0), (22, 59), "해"),
+]
 
-def get_saju_pillars(birth_date_obj, birth_time_obj):
-    day = sxtwl.fromSolar(
-        birth_date_obj.year,
-        birth_date_obj.month,
-        birth_date_obj.day
-    )
+def strip_unit(text: str) -> str:
+    return text.replace("년", "").replace("월", "").replace("일", "").replace("(윤)", "").replace("(윤월)", "").strip()
 
-    year_gz = day.getYearGZ()     # 입춘 기준
-    month_gz = day.getMonthGZ()   # 절기 기준 월주
-    day_gz = day.getDayGZ()
-    hour_gz = day.getHourGZ(birth_time_obj.hour)
+def split_ganji(kor_gapja: str):
+    parts = kor_gapja.split()
+    if len(parts) < 3:
+        raise ValueError(f"간지 문자열 파싱 실패: {kor_gapja}")
+    return strip_unit(parts[0]), strip_unit(parts[1]), strip_unit(parts[2])
 
-    return {
-        "year": gz_to_korean(year_gz),
-        "month": gz_to_korean(month_gz),
-        "day": gz_to_korean(day_gz),
-        "hour": gz_to_korean(hour_gz),
-        "year_animal": ZODIAC[year_gz.dz],
-        "day_master": GAN[day_gz.tg]
-    }
+def get_hour_branch(hour: int, minute: int) -> str:
+    total = hour * 60 + minute
+    for (sh, sm), (eh, em), branch in HOUR_BRANCH_TABLE:
+        start = sh * 60 + sm
+        end = eh * 60 + em
+        if start <= end:
+            if start <= total <= end:
+                return branch
+        else:
+            if total >= start or total <= end:
+                return branch
+    return "자"
 
-def count_five_elements(pillars):
+def get_hour_stem(day_stem: str, hour_branch: str) -> str:
+    start_stem = HOUR_STEM_START[day_stem]
+    start_idx = STEMS.index(start_stem)
+    branch_idx = BRANCHES.index(hour_branch)
+    return STEMS[(start_idx + branch_idx) % 10]
+
+def get_hour_ganji(day_stem: str, hour: int, minute: int) -> str:
+    hour_branch = get_hour_branch(hour, minute)
+    hour_stem = get_hour_stem(day_stem, hour_branch)
+    return hour_stem + hour_branch
+
+def get_ten_god(day_stem: str, other_stem: str) -> str:
+    return TEN_GOD_TABLE.get(day_stem, {}).get(other_stem, "-")
+
+def analyze_ohang(pillars):
     counts = {"목": 0, "화": 0, "토": 0, "금": 0, "수": 0}
-    chars = []
-    for key in ["year", "month", "day", "hour"]:
-        chars.extend(list(pillars[key]))
-
-    for ch in chars:
-        if ch in GAN_ELEMENT:
-            counts[GAN_ELEMENT[ch]] += 1
-        elif ch in ZHI_ELEMENT:
-            counts[ZHI_ELEMENT[ch]] += 1
+    for pillar in pillars:
+        stem = pillar[0]
+        branch = pillar[1]
+        counts[ELEMENTS[stem]] += 1
+        counts[ELEMENTS[branch]] += 1
     return counts
 
-def get_main_element(counts):
-    return max(counts, key=counts.get)
+def dominant_elements(counts):
+    max_val = max(counts.values())
+    min_val = min(counts.values())
+    strong = [k for k, v in counts.items() if v == max_val]
+    weak = [k for k, v in counts.items() if v == min_val]
+    return strong, weak
 
-def get_weak_element(counts):
-    return min(counts, key=counts.get)
+def safe_set_solar(calendar_obj, y, m, d):
+    ok = calendar_obj.setSolarDate(y, m, d)
+    if not ok:
+        raise ValueError("지원 범위를 벗어난 날짜이거나 잘못된 날짜입니다.")
+    return calendar_obj
 
-def get_today_fortune():
-    return TODAY_MESSAGES[date.today().weekday()]
+def get_full_saju(y: int, m: int, d: int, hour: int, minute: int):
+    calendar = KoreanLunarCalendar()
+    safe_set_solar(calendar, y, m, d)
 
-def get_lucky_color(element):
-    mapping = {
-        "목": "연두 / 그린 계열",
-        "화": "코랄 / 핑크 계열",
-        "토": "베이지 / 브라운 계열",
-        "금": "화이트 / 실버 계열",
-        "수": "네이비 / 블루 계열"
-    }
-    return mapping[element]
-
-def get_lucky_numbers(pillars):
-    seed = sum(ord(ch) for ch in pillars["day"] + pillars["month"])
-    return [(seed % 9) + 1, ((seed + 3) % 9) + 1, ((seed + 6) % 9) + 1]
-
-def pillar_summary(pillars, counts):
-    day_master = pillars["day_master"]
-    dominant = get_main_element(counts)
-    weak = get_weak_element(counts)
-
-    dm_text = DAY_MASTER_TEXT[day_master]
-    dominant_info = ELEMENT_DESC[dominant]
+    gapja_kor = calendar.getGapJaString()
+    year_ganji, month_ganji, day_ganji = split_ganji(gapja_kor)
+    hour_ganji = get_hour_ganji(day_ganji[0], hour, minute)
 
     return {
-        "day_master": day_master,
-        "dm_text": dm_text,
-        "dominant": dominant,
-        "weak": weak,
-        "dominant_title": dominant_info["title"],
-        "dominant_desc": dominant_info["desc"],
-        "tip": dominant_info["tip"]
+        "solar_date": calendar.SolarIsoFormat(),
+        "lunar_date": calendar.LunarIsoFormat(),
+        "is_intercalation": calendar.isIntercalation,
+        "year_pillar": year_ganji,
+        "month_pillar": month_ganji,
+        "day_pillar": day_ganji,
+        "hour_pillar": hour_ganji,
+        "gapja_kor": gapja_kor,
     }
 
-# -----------------------------
-# Header
-# -----------------------------
-st.markdown("<div class='main-title'>🔮 오늘의 사주</div>", unsafe_allow_html=True)
-st.markdown("<div class='sub-title'>사주팔자(년주·월주·일주·시주)와 오늘의 흐름을 쉽게 보기</div>", unsafe_allow_html=True)
+def get_today_saju():
+    today = date.today()
+    calendar = KoreanLunarCalendar()
+    safe_set_solar(calendar, today.year, today.month, today.day)
+    _, _, day_ganji = split_ganji(calendar.getGapJaString())
+    return day_ganji
 
-st.markdown(
-    "<div class='notice'>이 버전은 연주·월주·일주·시주를 계산합니다. 해석 문구는 쉽게 풀어쓴 입문형 설명이라서, 명리학 세부 해석 전체를 완전히 대체하지는 않습니다.</div>",
-    unsafe_allow_html=True
-)
+def make_summary(saju):
+    day_stem = saju["day_pillar"][0]
+    year_stem = saju["year_pillar"][0]
+    month_stem = saju["month_pillar"][0]
+    hour_stem = saju["hour_pillar"][0]
 
-# -----------------------------
-# Input
-# -----------------------------
-with st.container():
-    st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.markdown("<div class='section-title'>1) 정보 입력</div>", unsafe_allow_html=True)
+    year_tg = get_ten_god(day_stem, year_stem)
+    month_tg = get_ten_god(day_stem, month_stem)
+    hour_tg = get_ten_god(day_stem, hour_stem)
 
-    with st.form("saju_form"):
-        name = st.text_input("이름", placeholder="예: 지안")
-        birth_date = st.date_input(
-            "생년월일",
-            value=date(1995, 1, 1),
-            min_value=date(1900, 1, 1),
-            max_value=date.today()
-        )
-        birth_time = st.time_input(
-            "태어난 시간",
-            value=datetime.strptime("12:00", "%H:%M").time()
-        )
-        submitted = st.form_submit_button("사주 보기")
+    pillars = [
+        saju["year_pillar"],
+        saju["month_pillar"],
+        saju["day_pillar"],
+        saju["hour_pillar"],
+    ]
+    counts = analyze_ohang(pillars)
+    strong, weak = dominant_elements(counts)
 
-    st.markdown("</div>", unsafe_allow_html=True)
+    day_element = ELEMENTS[day_stem]
+    day_yinyang = YINYANG[day_stem]
 
-# -----------------------------
-# Result
-# -----------------------------
+    summary = f"""
+🌷 **나의 주인공 에너지는 {day_stem}({day_element}, {day_yinyang})**이에요!
+
+- 🐣 **태어난 해의 요정 ({year_tg})**: {TEN_GODS.get(year_tg, "-")}
+- 🐥 **태어난 달의 요정 ({month_tg})**: {TEN_GODS.get(month_tg, "-")}
+- 🦉 **태어난 시간의 요정 ({hour_tg})**: {TEN_GODS.get(hour_tg, "-")}
+
+🎨 오행 팔레트를 보면 **{", ".join(strong)} 기운이 뿜뿜!** 넘치구요,  
+조금 더 챙겨주면 좋은 기운은 **{", ".join(weak)}**이랍니다.
+"""
+    return summary, counts
+
+st.title("🌸 몽글몽글 만세력 🌸")
+st.info("🎂 생년월일과 출생 시간을 입력해 주세요!")
+
+with st.form("saju_form"):
+    birth_date = st.date_input(
+        "생년월일",
+        value=date(1995, 1, 1),
+        min_value=date(1000, 2, 13),
+        max_value=date(2050, 12, 31),
+        format="YYYY-MM-DD",
+    )
+    birth_time = st.time_input(
+        "출생 시간",
+        value=time(12, 0),
+        step=60,
+    )
+    submitted = st.form_submit_button("사주 보기")
+
 if submitted:
-    user_name = name.strip() if name.strip() else "당신"
-    pillars = get_saju_pillars(birth_date, birth_time)
-    counts = count_five_elements(pillars)
-    summary = pillar_summary(pillars, counts)
-    today = get_today_fortune()
-    lucky_numbers = get_lucky_numbers(pillars)
-    lucky_color = get_lucky_color(summary["dominant"])
+    try:
+        saju = get_full_saju(
+            birth_date.year, birth_date.month, birth_date.day,
+            birth_time.hour, birth_time.minute
+        )
 
-    # 사주팔자
-    st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.markdown("<div class='section-title'>2) 사주팔자</div>", unsafe_allow_html=True)
+        summary_text, ohang_counts = make_summary(saju)
 
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        st.markdown(f"<div class='mini-card'>년주<br><span style='font-size:1.35rem'>{pillars['year']}</span></div>", unsafe_allow_html=True)
-    with c2:
-        st.markdown(f"<div class='mini-card'>월주<br><span style='font-size:1.35rem'>{pillars['month']}</span></div>", unsafe_allow_html=True)
-    with c3:
-        st.markdown(f"<div class='mini-card'>일주<br><span style='font-size:1.35rem'>{pillars['day']}</span></div>", unsafe_allow_html=True)
-    with c4:
-        st.markdown(f"<div class='mini-card'>시주<br><span style='font-size:1.35rem'>{pillars['hour']}</span></div>", unsafe_allow_html=True)
+        st.success("만세력 계산이 완료되었습니다.")
+        st.write(saju)
+        st.markdown(summary_text)
+        st.write(ohang_counts)
 
-    st.markdown(
-        f"""
-        <div class='soft-card'>
-            <b>{user_name}</b>님의 일간은 <b>{summary["day_master"]}</b>입니다.<br><br>
-            {summary["dm_text"]}<br><br>
-            전체 오행 흐름에서는 <b>{summary["dominant"]}</b> 기운이 강하게 보이고,
-            상대적으로 <b>{summary["weak"]}</b> 기운은 보완 포인트로 볼 수 있습니다.
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    # 오행
-    st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.markdown("<div class='section-title'>3) 오행 분포</div>", unsafe_allow_html=True)
-
-    cols = st.columns(5)
-    order = ["목", "화", "토", "금", "수"]
-    for i, el in enumerate(order):
-        with cols[i]:
-            st.markdown(
-                f"<div class='mini-card'>{el}<br><span style='font-size:1.35rem'>{counts[el]}</span></div>",
-                unsafe_allow_html=True
-            )
-
-    st.markdown(
-        f"""
-        <div class='soft-card'>
-            <b>주요 기운: {summary["dominant"]} ({summary["dominant_title"]})</b><br>
-            {summary["dominant_desc"]}<br><br>
-            <b>생활 팁</b><br>
-            {summary["tip"]}
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    # 오늘 운세
-    st.markdown("<div class='fortune-card'>", unsafe_allow_html=True)
-    st.markdown("<div class='section-title' style='color:white;'>4) 오늘의 운세</div>", unsafe_allow_html=True)
-
-    st.markdown(
-        f"""
-        <div style='line-height:1.8;'>
-            <b>전체운</b><br>
-            {today["overall"]}<br><br>
-            <b>연애운</b><br>
-            {today["love"]}<br><br>
-            <b>일/학업운</b><br>
-            {today["work"]}<br><br>
-            <b>금전운</b><br>
-            {today["money"]}
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    # 행운 포인트
-    st.markdown("<div class='card'>", unsafe_allow_html=True)
-    st.markdown("<div class='section-title'>5) 오늘의 포인트</div>", unsafe_allow_html=True)
-
-    st.markdown(
-        f"""
-        <span class='pill'>띠: {pillars["year_animal"]}</span>
-        <span class='pill'>일간: {summary["day_master"]}</span>
-        <span class='pill'>행운 색상: {lucky_color}</span>
-        <span class='pill'>행운 숫자: {lucky_numbers[0]}, {lucky_numbers[1]}, {lucky_numbers[2]}</span>
-        """,
-        unsafe_allow_html=True
-    )
-
-    st.markdown(
-        f"""
-        <div class='soft-card'>
-            오늘은 <b>{user_name}</b>님이 자신의 기본 리듬을 유지할수록 좋은 날입니다.
-            특히 <b>{summary["dominant"]}</b> 기운의 장점을 살려,
-            너무 많은 일을 한 번에 벌이기보다 <b>한 가지 중요한 일에 집중</b>하면 흐름이 좋아집니다.
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-    st.markdown("</div>", unsafe_allow_html=True)
+    except Exception as e:
+        st.error(f"오류가 발생했습니다: {e}")
