@@ -5,7 +5,7 @@ from datetime import date, datetime
 # Page Config
 # -----------------------------
 st.set_page_config(
-    page_title="오늘의 사주 한 장",
+    page_title="오늘의 사주",
     page_icon="🔮",
     layout="centered"
 )
