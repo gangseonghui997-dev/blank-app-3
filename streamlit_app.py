@@ -282,7 +282,7 @@ with st.container():
     st.markdown("<div class='card'>", unsafe_allow_html=True)
     st.markdown("<div class='section-title'>1) 내 정보 입력</div>", unsafe_allow_html=True)
 
-    name = st.text_input("이름", placeholder="예: 성희")
+    name = st.text_input("이름", placeholder="예: 홍길동")
     birth_date = st.date_input(
         "생년월일",
         value=date(1995, 1, 1),
