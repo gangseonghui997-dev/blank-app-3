@@ -1,9 +1,4 @@
-세션 5-8: [프로젝트] AI 예측 대시보드 (5주차 확장)
-실행: streamlit run streamlit_app.py
 
-Streamlit Cloud 배포용 — 모델 파일(.pkl, .pt) 없이 앱 내에서 직접 학습합니다.
-필요 패키지: requirements.txt 참고
-"""
 import streamlit as st
 import pandas as pd
 import numpy as np
